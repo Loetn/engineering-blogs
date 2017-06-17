@@ -8,26 +8,39 @@ require 'nokogiri'
 require 'uri'
 
 OUTPUT_FILENAME = 'engineering_blogs.opml'
-LIMIT = 10
 TITLE = 'Engineering Blogs'
 
 # grab name/url pairings from README.md
 readme = File.open('README.md', 'r')
 contents = readme.read
 matches = contents.scan(/\* (.*) (http.*)/)
+# All blogs that do not respond
+unavailable = []
+temp_ignores = [
+  'AdRoll',
+  'Buzzfeed',
+  'Opendoor',
+  'SourceClear',
+  'TaskRabbit',
+  'theScore',
+  'Trivago',
+  'Xmartlabs',
+  'WyeWorks',
+  'Zoosk'
+]
 
 Struct.new('Blog', :name, :web_url, :rss_url)
 blogs = []
 
 # for each blog URL, check if rss URL exists
 matches.each_with_index do |match, index|
-  # for testing purposes
-  # if index > LIMIT
-  #   break
-  # end
-
   name = match[0]
   web_url = match[1]
+
+  if temp_ignores.include?(name)
+      puts "#{name}: IGNORE [TEMPORARILY]"
+      next
+  end
 
   # if rss_url already in existing opml file, use that; otherwise, do a lookup
   rss_url = nil
@@ -60,10 +73,16 @@ matches.each_with_index do |match, index|
     end
   end
 
-  blogs.push(Struct::Blog.new(name, web_url, rss_url)) if rss_url && rss_url.length > 0
+  if rss_url && rss_url.length > 0
+    blogs.push(Struct::Blog.new(name, web_url, rss_url))
+  else
+    unavailable.push(Struct::Blog.new(name, web_url, rss_url))
+  end
+
 end
 
 blogs.sort_by { |b| b.name.capitalize }
+unavailable.sort_by { |b| b.name.capitalize }
 
 # write opml
 xml = Builder::XmlMarkup.new(indent: 2)
@@ -90,3 +109,10 @@ output.write(xml.target!)
 output.close
 
 puts "DONE: #{blogs.count} written to #{OUTPUT_FILENAME}"
+
+puts "\nUnable to find an RSS feed for the following blogs:"
+puts "==================================================="
+unavailable.each do |b|
+  puts "#{b.name} | #{b.web_url}"
+end
+puts "==================================================="
